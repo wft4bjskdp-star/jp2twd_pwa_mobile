@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>售價計算機｜日幣→台幣</title>
+  <style>
+    :root{
+      --bg:#f8fafc; --card:#ffffff; --text:#0f172a; --muted:#64748b;
+      --line:#e2e8f0; --accent:#fef3c7; --accentText:#92400e; --radius:14px;
+      --primary:#111827;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "Helvetica Neue", Arial;
+      margin:0;background:var(--bg);color:var(--text);
+      padding-bottom: 92px;
+    }
+    .container{max-width:1080px;margin:0 auto;padding:16px}
+    h1{font-size:20px;margin:0 0 8px}
+    .lead{margin:0 0 12px;color:var(--muted);font-size:13px}
+    .grid{display:grid;gap:12px}
+    @media(min-width:1024px){.grid{grid-template-columns:repeat(3,1fr)} .mobile-only{display:none}}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .card .content{padding:12px}
+    h2{font-size:16px;margin:0 0 8px}
+    label{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#334155;margin-bottom:6px}
+    .hint{color:#94a3b8;font-size:12px;margin-left:8px}
+    input[type="text"], input[type="number"]{
+      width:100%;border:1px solid var(--line);border-radius:12px;padding:14px 12px;
+      font-size:16px;background:#fff;outline:none; -webkit-appearance:none; appearance:none;
+    }
+    input:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.25)}
+    .row{margin-bottom:10px}
+    .row .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+    .chip{padding:8px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:#334155;background:#fff}
+    .chip[data-active="true"]{background:#111827;color:#fff;border-color:#111827}
+    select{
+      width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;
+      font-size:15px;background:#fff;outline:none;
+    }
+    .result{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #e5e7eb}
+    .result:last-child{border-bottom:0}
+    .strong{font-weight:600}
+    .muted{color:var(--muted);font-size:12px;line-height:1.6;margin-top:6px}
+    .actions{display:flex;gap:8px;padding-top:8px}
+    button{border:1px solid var(--line);background:#111827;color:#fff;padding:12px 14px;border-radius:12px;cursor:pointer;font-size:15px}
+    button.secondary{background:#fff;color:#111827}
+    .mono{font-variant-numeric:tabular-nums}
+    .stickybar{
+      position: fixed; left:0; right:0; bottom:0; padding: 10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+      backdrop-filter: blur(6px);
+      background: rgba(255,255,255,.9); border-top:1px solid var(--line);
+    }
+    .sticky-inner{max-width:1080px;margin:0 auto;display:flex;gap:10px;align-items:center;justify-content:space-between}
+    .price{display:flex;flex-direction:column}
+    .price .label{font-size:12px;color:#334155}
+    .price .value{font-size:22px;font-weight:700;color:#0f172a}
+    .sticky-actions{display:flex;gap:8px}
+    .btn{padding:12px 14px;border-radius:12px;font-size:15px;border:1px solid var(--line);background:#111827;color:#fff}
+    .btn.secondary{background:#fff;color:#111827}
+    .two-col{display:grid;grid-template-columns:1fr 1fr; gap:8px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>售價計算機｜日幣→台幣</h1>
+    <p class="lead">順序：日圓→匯率→國外手續費→<b>利潤</b>→運費→刷卡→營業稅。支援 PWA、離線、主畫面。</p>
+
+    <div class="grid">
+      <div class="card">
+        <div class="content">
+          <h2>輸入金額</h2>
+          <div class="row">
+            <label>商品日幣價格 (JPY)</label>
+            <input id="jpyPrice" type="number" inputmode="numeric" placeholder="例如 1290">
+          </div>
+          <div class="row">
+            <label>匯率 TWD / JPY <span class="hint">(預設 0.22)</span></label>
+            <input id="fx" type="text" inputmode="decimal" placeholder="0.22">
+            <div class="chips">
+              <span class="chip" data-fx="0.21">0.21</span>
+              <span class="chip" data-fx="0.22">0.22</span>
+              <span class="chip" data-fx="0.23">0.23</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="content">
+          <h2>費率與利潤</h2>
+          <div class="two-col">
+            <div class="row">
+              <label>代購費 <span class="hint">(預設 10%)</span></label>
+              <input id="agentFee" type="text" inputmode="decimal" placeholder="10% 或 0.10">
+            </div>
+            <div class="row">
+              <label>國外交易手續費 <span class="hint">(預設 1.5%)</span></label>
+              <input id="foreignFee" type="text" inputmode="decimal" placeholder="1.5% 或 0.015">
+            </div>
+          </div>
+          <div class="row">
+            <label>利潤率 <span class="hint">(預設 25%)</span></label>
+            <input id="profit" type="text" inputmode="decimal" placeholder="25% 或 0.25">
+            <div class="chips">
+              <span class="chip" data-profit="0.2">20%</span>
+              <span class="chip" data-profit="0.25">25%</span>
+              <span class="chip" data-profit="0.3">30%</span>
+            </div>
+          </div>
+          <div class="row">
+            <label>最終售價進位規則</label>
+            <select id="rounding">
+              <option value="1">不進位</option>
+              <option value="10">進位到 10 元</option>
+              <option value="50">進位到 50 元</option>
+              <option value="100">進位到 100 元</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="content">
+          <h2>物流與稅金</h2>
+          <div class="two-col">
+            <div class="row">
+              <label>預估重量 (g)</label>
+              <input id="weight" type="number" inputmode="numeric" placeholder="例如 120">
+            </div>
+            <div class="row">
+              <label>每克運費 (TWD/g) <span class="hint">(預設 0.25)</span></label>
+              <input id="shipPerGram" type="text" inputmode="decimal" placeholder="0.25">
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="row">
+              <label>刷卡手續費 <span class="hint">(預設 3%)</span></label>
+              <input id="cardFee" type="text" inputmode="decimal" placeholder="3% 或 0.03">
+            </div>
+            <div class="row">
+              <label>營業稅 <span class="hint">(預設 5%)</span></label>
+              <input id="tax" type="text" inputmode="decimal" placeholder="5% 或 0.05">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: 1 / -1;">
+        <div class="content">
+          <h2>明細</h2>
+          <div class="result"><span>總成本 (日圓)</span><span id="jpyTotal" class="mono">¥0</span></div>
+          <div class="result"><span>台幣成本</span><span id="twdCost" class="mono">NT$0</span></div>
+          <div class="result"><span>成本總和（台幣）</span><span id="twdSum" class="mono">NT$0</span></div>
+          <div class="result"><span class="strong">含利潤售價（未稅）</span><span id="withProfit" class="mono strong">NT$0</span></div>
+          <div class="result"><span>運費（估）</span><span id="shipping" class="mono">NT$0</span></div>
+          <div class="result"><span class="strong">含運費售價（未稅）</span><span id="pretax" class="mono strong">NT$0</span></div>
+          <div class="result"><span>刷卡後金額</span><span id="afterCard" class="mono">NT$0</span></div>
+          <div class="result"><span class="strong">最終售價（含稅）</span><span id="finalPrice" class="mono">NT$0</span></div>
+          <p class="muted">比率欄可輸入 <code>10%</code> 或 <code>0.1</code>；設定（除金額）會儲存在本機。</p>
+          <div class="actions">
+            <button id="copyBtn">複製摘要</button>
+            <button id="clearBtn" class="secondary">清空金額</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stickybar">
+    <div class="sticky-inner">
+      <div class="price">
+        <span class="label">最終售價（含稅）</span>
+        <span id="finalSticky" class="value mono">NT$0</span>
+      </div>
+      <div class="sticky-actions">
+        <button id="copyBtn2" class="btn">複製摘要</button>
+        <button id="installBtn" class="btn secondary">加入主畫面</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    }
+    let deferredPrompt;
+    const installBtn = document.getElementById('installBtn');
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; installBtn.style.display='inline-block'; });
+    installBtn?.addEventListener('click', async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; });
+
+    const $ = (id) => document.getElementById(id);
+    const toNumber = (v) => {
+      if (typeof v !== 'string') v = String(v ?? '');
+      const s = v.replace('％','%').trim();
+      if (s.endsWith('%')) { const n = parseFloat(s.slice(0,-1)); return isFinite(n) ? n/100 : 0; }
+      const n = parseFloat(s); return isFinite(n) ? n : 0;
+    };
+    const twdFmt = new Intl.NumberFormat('zh-TW', { style:'currency', currency:'TWD', maximumFractionDigits:0 });
+    const yen = (n) => '¥' + Math.round(n).toLocaleString();
+    const ceilTo = (x, step) => step <= 1 ? Math.round(x) : Math.ceil(x / step) * step;
+
+    const jpyPrice=$('jpyPrice'), fx=$('fx'), agentFee=$('agentFee'), foreignFee=$('foreignFee'), profit=$('profit');
+    const weight=$('weight'), shipPerGram=$('shipPerGram'), cardFee=$('cardFee'), tax=$('tax'), rounding=$('rounding');
+    const jpyTotal=$('jpyTotal'), twdCost=$('twdCost'), twdSum=$('twdSum'), withProfit=$('withProfit');
+    const shipping=$('shipping'), pretax=$('pretax'), afterCard=$('afterCard'), finalPrice=$('finalPrice'), finalSticky=$('finalSticky');
+
+    const defaults = { agentFee:'10%', fx:'0.22', foreignFee:'1.5%', profit:'25%', weight:'0', shipPerGram:'0.25', cardFee:'3%', tax:'5%', rounding:'1' };
+
+    try{
+      const saved = JSON.parse(localStorage.getItem('jp2twd_calc_pwa_mobile')||'{}');
+      agentFee.value = saved.agentFee ?? defaults.agentFee;
+      fx.value = saved.fx ?? defaults.fx;
+      foreignFee.value = saved.foreignFee ?? defaults.foreignFee;
+      profit.value = saved.profit ?? defaults.profit;
+      weight.value = saved.weight ?? defaults.weight;
+      shipPerGram.value = saved.shipPerGram ?? defaults.shipPerGram;
+      cardFee.value = saved.cardFee ?? defaults.cardFee;
+      tax.value = saved.tax ?? defaults.tax;
+      rounding.value = saved.rounding ?? defaults.rounding;
+    }catch(e){
+      agentFee.value = defaults.agentFee; fx.value = defaults.fx; foreignFee.value = defaults.foreignFee;
+      profit.value = defaults.profit; weight.value = defaults.weight; shipPerGram.value = defaults.shipPerGram;
+      cardFee.value = defaults.cardFee; tax.value = defaults.tax; rounding.value = defaults.rounding;
+    }
+
+    const saveSettings = () => {
+      const data = {
+        agentFee: agentFee.value, fx: fx.value, foreignFee: foreignFee.value, profit: profit.value,
+        weight: weight.value, shipPerGram: shipPerGram.value, cardFee: cardFee.value, tax: tax.value,
+        rounding: rounding.value
+      };
+      localStorage.setItem('jp2twd_calc_pwa_mobile', JSON.stringify(data));
+    };
+
+    function recalc(){
+      const P = toNumber(jpyPrice.value);
+      const R = toNumber(fx.value);
+      const ag = toNumber(agentFee.value);
+      const ff = toNumber(foreignFee.value);
+      const pr = toNumber(profit.value);
+      const W = toNumber(weight.value);
+      const SPG = toNumber(shipPerGram.value);
+      const cf = toNumber(cardFee.value);
+      const tx = toNumber(tax.value);
+      const step = parseInt(rounding.value, 10) || 1;
+
+      const jpy_total = P * (1 + ag);
+      const twd_cost = jpy_total * R;
+      const twd_sum_ = twd_cost * (1 + ff);
+      const with_profit_ = twd_sum_ * (1 + pr);
+      const shipping_ = W * SPG;
+      const pretax_ = with_profit_ + shipping_;
+      const after_card_raw = pretax_ * (1 + cf);
+      const final_raw = after_card_raw * (1 + tx);
+
+      const final_rounded = ceilTo(final_raw, step);
+
+      jpyTotal.textContent = yen(jpy_total);
+      twdCost.textContent = twdFmt.format(Math.round(twd_cost));
+      twdSum.textContent = twdFmt.format(Math.round(twd_sum_));
+      withProfit.textContent = twdFmt.format(Math.round(with_profit_));
+      shipping.textContent = twdFmt.format(Math.round(shipping_));
+      pretax.textContent = twdFmt.format(Math.round(pretax_));
+      afterCard.textContent = twdFmt.format(Math.round(after_card_raw));
+      finalPrice.textContent = twdFmt.format(final_rounded);
+      finalSticky.textContent = twdFmt.format(final_rounded);
+    }
+
+    const bind = (el) => el.addEventListener('input', ()=>{ recalc(); saveSettings(); });
+    [jpyPrice, fx, agentFee, foreignFee, profit, weight, shipPerGram, cardFee, tax, rounding].forEach(bind);
+
+    document.querySelectorAll('.chip[data-fx]').forEach(ch => ch.addEventListener('click', () => { fx.value = ch.getAttribute('data-fx'); recalc(); saveSettings(); }));
+    document.querySelectorAll('.chip[data-profit]').forEach(ch => ch.addEventListener('click', () => { profit.value = ch.getAttribute('data-profit'); recalc(); saveSettings(); }));
+
+    const copy = async () => {
+      const lines = [
+        `商品日幣價格: ${yen(toNumber(jpyPrice.value))}`,
+        `匯率: ${fx.value}`,
+        `代購費: ${agentFee.value}`,
+        `總成本(日圓): ${jpyTotal.textContent}`,
+        `台幣成本: ${twdCost.textContent}`,
+        `國外交易手續費: ${foreignFee.value}`,
+        `成本總和（台幣）: ${twdSum.textContent}`,
+        `利潤率: ${profit.value}`,
+        `含利潤售價（未稅）: ${withProfit.textContent}`,
+        `預估重量(g): ${weight.value || 0}`,
+        `每克運費(元): ${shipPerGram.value || 0}`,
+        `含運費售價（未稅）: ${pretax.textContent}`,
+        `刷卡手續費: ${cardFee.value}`,
+        `刷卡後金額: ${afterCard.textContent}`,
+        `營業稅: ${tax.value}`,
+        `最終售價（含稅）: ${finalPrice.textContent}`,
+      ].join('\\n');
+      try{ await navigator.clipboard.writeText(lines); }catch(e){ alert('複製失敗，可能被瀏覽器阻擋'); }
+    };
+    document.getElementById('copyBtn').addEventListener('click', copy);
+    document.getElementById('copyBtn2').addEventListener('click', copy);
+    document.getElementById('clearBtn').addEventListener('click', () => { jpyPrice.value=''; recalc(); });
+
+    recalc();
+  </script>
+</body>
+</html>
